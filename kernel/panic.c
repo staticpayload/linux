@@ -628,11 +628,33 @@ void panic(const char *fmt, ...)
 }
 EXPORT_SYMBOL(panic);
 
+#define TAINT_FLAGS(_)						\
+	_(PROPRIETARY_MODULE,		'P', 'G')		\
+	_(FORCED_MODULE,		'F', ' ')		\
+	_(CPU_OUT_OF_SPEC,		'S', ' ')		\
+	_(FORCED_RMMOD,			'R', ' ')		\
+	_(MACHINE_CHECK,		'M', ' ')		\
+	_(BAD_PAGE,			'B', ' ')		\
+	_(USER,				'U', ' ')		\
+	_(DIE,				'D', ' ')		\
+	_(OVERRIDDEN_ACPI_TABLE,	'A', ' ')		\
+	_(WARN,				'W', ' ')		\
+	_(CRAP,				'C', ' ')		\
+	_(FIRMWARE_WORKAROUND,		'I', ' ')		\
+	_(OOT_MODULE,			'O', ' ')		\
+	_(UNSIGNED_MODULE,		'E', ' ')		\
+	_(SOFTLOCKUP,			'L', ' ')		\
+	_(LIVEPATCH,			'K', ' ')		\
+	_(AUX,				'X', ' ')		\
+	_(RANDSTRUCT,			'T', ' ')		\
+	_(TEST,				'N', ' ')		\
+	_(FWCTL,			'J', ' ')
+
 #define TAINT_FLAG(taint, _c_true, _c_false)				\
 	[ TAINT_##taint ] = {						\
 		.c_true = _c_true, .c_false = _c_false,			\
 		.desc = #taint,						\
-	}
+	},
 
 /*
  * NOTE: if you modify the taint_flags or TAINT_FLAGS_COUNT,
@@ -642,29 +664,34 @@ EXPORT_SYMBOL(panic);
  * /proc/sys/kernel/tainted.
  */
 const struct taint_flag taint_flags[TAINT_FLAGS_COUNT] = {
-	TAINT_FLAG(PROPRIETARY_MODULE,		'P', 'G'),
-	TAINT_FLAG(FORCED_MODULE,		'F', ' '),
-	TAINT_FLAG(CPU_OUT_OF_SPEC,		'S', ' '),
-	TAINT_FLAG(FORCED_RMMOD,		'R', ' '),
-	TAINT_FLAG(MACHINE_CHECK,		'M', ' '),
-	TAINT_FLAG(BAD_PAGE,			'B', ' '),
-	TAINT_FLAG(USER,			'U', ' '),
-	TAINT_FLAG(DIE,				'D', ' '),
-	TAINT_FLAG(OVERRIDDEN_ACPI_TABLE,	'A', ' '),
-	TAINT_FLAG(WARN,			'W', ' '),
-	TAINT_FLAG(CRAP,			'C', ' '),
-	TAINT_FLAG(FIRMWARE_WORKAROUND,		'I', ' '),
-	TAINT_FLAG(OOT_MODULE,			'O', ' '),
-	TAINT_FLAG(UNSIGNED_MODULE,		'E', ' '),
-	TAINT_FLAG(SOFTLOCKUP,			'L', ' '),
-	TAINT_FLAG(LIVEPATCH,			'K', ' '),
-	TAINT_FLAG(AUX,				'X', ' '),
-	TAINT_FLAG(RANDSTRUCT,			'T', ' '),
-	TAINT_FLAG(TEST,			'N', ' '),
-	TAINT_FLAG(FWCTL,			'J', ' '),
+	TAINT_FLAGS(TAINT_FLAG)
 };
 
 #undef TAINT_FLAG
+
+#define TAINT_DESC_LEN(taint, _c_true, _c_false)		\
+	+ (sizeof(#taint) - 1)
+
+enum { TAINT_FLAGS_DESC_LEN = 0 TAINT_FLAGS(TAINT_DESC_LEN) };
+
+#undef TAINT_DESC_LEN
+#undef TAINT_FLAGS
+
+#define TAINT_VERBOSE_PREFIX_LEN	(sizeof("Tainted: ") - 1)
+#define TAINT_VERBOSE_FLAG_LEN		4 /* "[X]=" */
+#define TAINT_VERBOSE_SEP_LEN		(sizeof(", ") - 1)
+#define TAINT_NOT_TAINTED_LEN		(sizeof("Not tainted") - 1)
+#define TAINT_MAX(a, b)			((a) > (b) ? (a) : (b))
+#define TAINT_VERBOSE_MAX						\
+	(TAINT_VERBOSE_PREFIX_LEN +					\
+	 TAINT_FLAGS_COUNT * TAINT_VERBOSE_FLAG_LEN +			\
+	 (TAINT_FLAGS_COUNT - 1) * TAINT_VERBOSE_SEP_LEN +		\
+	 TAINT_FLAGS_DESC_LEN)
+#define TAINT_NONVERBOSE_MAX		(TAINT_VERBOSE_PREFIX_LEN + \
+					 TAINT_FLAGS_COUNT)
+#define TAINT_BUF_LEN							\
+	(TAINT_MAX(TAINT_MAX(TAINT_VERBOSE_MAX, TAINT_NONVERBOSE_MAX), \
+		   TAINT_NOT_TAINTED_LEN) + 1)
 
 static void print_tainted_seq(struct seq_buf *s, bool verbose)
 {
@@ -695,8 +722,7 @@ static void print_tainted_seq(struct seq_buf *s, bool verbose)
 
 static const char *_print_tainted(bool verbose)
 {
-	/* FIXME: what should the size be? */
-	static char buf[sizeof(taint_flags)];
+	static char buf[TAINT_BUF_LEN];
 	struct seq_buf s;
 
 	BUILD_BUG_ON(ARRAY_SIZE(taint_flags) != TAINT_FLAGS_COUNT);
