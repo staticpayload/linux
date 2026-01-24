@@ -184,7 +184,7 @@ static bool check_relative_address(struct fsi_master_acf *master, int id,
 
 	/* We know that the addresses are limited to 21 bits, so this won't
 	 * overflow the signed rel_addr */
-	rel_addr = addr - last_addr;
+	rel_addr = (int32_t)addr - (int32_t)last_addr;
 	if (rel_addr > 255 || rel_addr < -256)
 		return false;
 
